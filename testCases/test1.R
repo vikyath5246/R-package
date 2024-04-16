@@ -30,7 +30,7 @@ data$monthly_expenses <- with(data, 500 + 100 * age + rnorm(n_rows, mean = 0, sd
 
 # Test the train_model function with different model types
 # For example, train a linear regression model
-linear_model <- choose_models(monthly_expenses ~ ., data = data, model_type = "linear")
+linear_model <- choose_models(monthly_expenses ~ ., data = data)
 print(summary(linear_model))
 
 # Train a random forest model
