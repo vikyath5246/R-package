@@ -30,20 +30,20 @@ data$monthly_expenses <- with(data, 500 + 100 * age + rnorm(n_rows, mean = 0, sd
 
 # Test the train_model function with different model types
 # For example, train a linear regression model
-linear_model <- choose_models(monthly_expenses ~ ., data = data)
+linear_model <- train_model(monthly_expenses ~ ., data = data)
 print(summary(linear_model))
 
 # Train a random forest model
-random_forest_model <- choose_models(monthly_expenses ~ ., data = data, model_type = "random_forest")
+random_forest_model <- train_model(monthly_expenses ~ ., data = data, model_type = "random_forest")
 print(random_forest_model)
 
 # Train a ridge regression model
-ridge_model <- choose_models(monthly_expenses ~ ., data = data, model_type = "ridge", family = "gaussian", lambda = 0.1)
+ridge_model <- train_model(monthly_expenses ~ ., data = data, model_type = "ridge", family = "gaussian", lambda = 0.1)
 print(summary(ridge_model))
 
 # Train a logistic regression model (for classification tasks)
 # Note: Ensure the target variable is binary for logistic regression
 # For demonstration purposes, let's convert monthly expenses to a binary variable indicating high or low expenses
 data$high_expenses <- ifelse(data$monthly_expenses > median(data$monthly_expenses), TRUE, FALSE)
-logistic_model <- choose_models(high_expenses ~ ., data = data, model_type = "logistic")
+logistic_model <- train_model(high_expenses ~ ., data = data, model_type = "logistic")
 print(summary(logistic_model))
