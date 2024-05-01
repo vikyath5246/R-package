@@ -1,0 +1,26 @@
+---
+title: "Ensemble learning"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Ensemble learning}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(SimpleEnsembleGroup17)
+```
+
+File this
+```{r}
+
+
+
+```
