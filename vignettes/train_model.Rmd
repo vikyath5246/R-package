@@ -1,0 +1,109 @@
+---
+title: "TrainModel"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Training Models with the trainmodel Function}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(SimpleEnsembleGroup17)
+```
+
+## Introduction
+
+The `trainmodel` function from the `SimpleEnsembleGroup17` package provides a convenient way to train various types of models, including linear regression, lasso regression, and random forest models. In this vignette, we'll demonstrate how to use `trainmodel` with the Boston dataset from the MASS library and explain the different model types and their applications.
+
+## The trainmodel Function
+
+```{r trainmodel, eval=FALSE}
+trainmodel <- function(y, X, model_type = "random_forest", family = NULL, lambda = NULL) {
+...
+}
+```
+
+The `trainmodel` function has the following signature:
+
+- `y`: This is the target variable (response).
+- `X`: This is the matrix or data frame containing the predictor variables (features).
+- `model_type`: This parameter specifies the type of model to be trained. The default value is `"random_forest"`, but it can be set to other values like `"linear"`, `"lasso"`, `"ridge"`, `"elastic_net"`, `"logistic"` or `"random_forest"`.
+- `family`: This parameter is used to specify the distribution of the target variable for certain models, such penalized linear models. When `family` is set to `NULL` (the default), the function will automatically determine the appropriate distribution based on the target variable type (binary or continuous).
+- `lambda`: This parameter is used to specify the regularization strength (lambda) for regularized regression models like ridge regression, lasso regression, and elastic net regression. When `lambda` is set to `NULL` (the default), the function will perform cross-validation to find the optimal value of lambda automatically.
+
+
+## Load the Boston Dataset
+
+```{r load-data}
+data(Boston)
+head(Boston)
+```
+
+The Boston dataset contains information about housing values in the suburbs of Boston. It includes various features such as crime rate (`crim`), average number of rooms (`rm`), and accessibility to radial highways (`rad`). The target variable is the median value of owner-occupied homes (`medv`).
+
+## Features-Processing
+- High Column-to-Row Ratio Check: The function checks if the number of columns (features) is significantly greater than the number of rows (observations). If the ratio is greater than 5, it prints a warning suggesting the use of penalized regression or top k predictors, as normal regression may not fit well in such cases.
+- Categorical Data Check: The function checks if there are any categorical columns in the predictor variables (X). If there are categorical columns, it prints a warning message suggesting converting them to numerical columns, as the models may not fit correctly with categorical data.
+- Missing Library Installation: The function checks if the required libraries (glmnet and randomForest) are installed. If not, it will install the missing libraries.
+- Missing Value Handling: The function checks if there are any missing values (NA) in the predictor variables (X) or the target variable (y). If there are missing values, it prints a warning message and removes the rows with missing values.
+- Model Training: The function trains the specified model type based on the provided data. It handles linear regression, logistic regression, ridge regression, lasso regression, elastic net regression, and random forest models.
+- Regularized Model Training: For regularized models (ridge, lasso, and elastic net), the function automatically determines the appropriate distribution (gaussian or binomial) based on the number of unique values in the target variable. It also performs cross-validation to find the optimal value of lambda (regularization strength) if not provided.
+- Random Forest Model Training: For random forest models, the function checks if the target variable has four or fewer unique values, in which case it treats the problem as classification and sets the classification parameter accordingly.
+- Error Handling: The function includes error handling for invalid model types.
+
+
+## Linear Regression
+
+Linear regression is a fundamental technique used to model the relationship between a dependent variable and one or more independent variables. It is suitable for continuous target variables and assumes a linear relationship between the predictors and the target.
+
+```{r linear-regression}
+linear_model <- trainmodel(y = Boston$medv, X = Boston[, -which(names(Boston) == "medv")], model_type = "linear")
+summary(linear_model)
+```
+
+In the above example, we train a linear regression model to predict the median value of owner-occupied homes (`medv`) based on the other features in the dataset. The parameters used are:
+
+- `y = Boston$medv`: This is the target variable.
+- `X = Boston[, -which(names(Boston) == "medv")]`: This is the matrix containing the predictor variables, excluding the target variable.
+- `model_type = "linear"`: This parameter specifies that we want to train a linear regression model.
+
+## Lasso Regression
+
+Lasso regression (Least Absolute Shrinkage and Selection Operator) is a regularized regression technique used to address overfitting and perform feature selection. It adds a penalty term to the cost function that shrinks the coefficients of less important features towards zero, effectively performing variable selection.
+
+```{r lasso-regression}
+lasso_model <- trainmodel(y = Boston$medv, X = Boston[, -which(names(Boston) == "medv")], model_type = "lasso")
+coef(lasso_model)
+```
+
+To train a lasso regression model, we use the following parameters:
+
+- `y = Boston$medv`: This is the target variable.
+- `X = Boston[, -which(names(Boston) == "medv")]`: This is the matrix containing the predictor variables, excluding the target variable.
+- `model_type = "lasso"`: This parameter specifies that we want to train a lasso regression model.
+The `trainmodel` function handles the internal parameter tuning and selects an appropriate lambda value (the regularization strength) based on cross-validation.
+
+## Random Forest
+
+Random forest is an ensemble learning method that combines multiple decision trees to improve predictive accuracy and control overfitting. It can be used for both regression and classification tasks.
+
+```{r random-forest}
+rf_model <- trainmodel(y = Boston$medv, X = Boston[, -which(names(Boston) == "medv")], model_type = "random_forest")
+importance(rf_model)
+```
+
+In this example, we train a random forest model for the regression task of predicting the median value of owner-occupied homes (`medv`). The parameters used are:
+
+- `y = Boston$medv`: This is the target variable.
+- `X = Boston[, -which(names(Boston) == "medv")]`: This is the matrix containing the predictor variables, excluding the target variable.
+- `model_type = "random_forest"`: This parameter specifies that we want to train a random forest model.
+
+The `trainmodel` function automatically detects whether the target variable is continuous or categorical and sets the appropriate parameters for the random forest model.
+
+## Conclusion
+
+In this vignette, we demonstrated how to use the `trainmodel` function to train linear regression,logistic regression, ridge regression, elastic_net, lasso regression, and random forest models using the Boston dataset. The `trainmodel` function provides a convenient way for tasks such as handling categorical variables, missing data, and model-specific parameter tuning.
+
+By leveraging the `trainmodel` function, users can easily experiment with different model types and select the most appropriate one for their specific problem and dataset. 

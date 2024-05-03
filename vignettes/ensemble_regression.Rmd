@@ -7,20 +7,52 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
-```
-
-```{r setup}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 library(SimpleEnsembleGroup17)
 ```
 
-File this
-```{r}
+## Introduction
+
+The `ensemble_prediction` function from the `SimpleEnsembleGroup17` package provides a way to generate predictions by combining the predictions of multiple models using `ensemble_prediction`. In this vignette, we'll demonstrate how to use `ensemble_prediction` with different types of models and explore its various functionalities.
 
 
+## The ensemble_prediction function:
 
+```{r ensemble_prediction, eval=FALSE}
+ensemble_prediction <- function(X, y, models, weights = NULL) {
+  
+}
 ```
+
+The `ensemble_prediction` function has the following signature:
+
+- X: Predictor variables (features) in the dataset.
+- y: Target variable (response) in the dataset.
+- models: A vector specifying the types of models to be used for prediction. Supported model types include "linear", "logistic", "lasso", "ridge", "elastic_net", and "random_forest".
+- weights: Optional weights assigned to each model for generating weighted predictions. If not provided, equal weights are assigned by default.
+
+
+To use the ensemble_prediction function, you need to specify the predictor variables (X), target variable (y), and the types of models (models) you want to use for prediction. Optionally, you can provide weights (weights) to assign different importance to each model.
+
+## Load the Boston Dataset
+
+```{r load-data}
+library(MASS)
+data("Boston")
+```
+
+The Boston dataset contains information about housing values in the suburbs of Boston. It includes various features such as crime rate (`crim`), average number of rooms (`rm`), and accessibility to radial highways (`rad`). The target variable is the median value of owner-occupied homes (`medv`).
+
+```{r}
+# Example usage
+y <- Boston$medv
+X <- Boston[, !names(Boston) %in% "medv"]
+pred<-ensemble_prediction(X, y, models = c("linear", "lasso", "random_forest"))
+```
+
+
+
+## Conclusion
+
+In this vignette, we introduced the ensemble_prediction function for generating predictions using ensemble regression. We explained its usage, workflow, and provided an example to demonstrate its functionality. By leveraging ensemble regression, users can combine the strengths of multiple models to improve predictive accuracy and robustness in various applications.

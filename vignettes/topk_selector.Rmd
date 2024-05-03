@@ -1,0 +1,52 @@
+---
+title: "TopK"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{TopK}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(SimpleEnsembleGroup17)
+```
+## Introduction
+The `topk_selector` function from the `SimpleEnsembleGroup17` package provides a convenient way for selecting the top K predictors from a dataset using various techniques such as correlation, t-test, and lasso regression. In this vignette, we'll demonstrate how to use `topk_selector` with the Leukemia dataset from the [Source Url](https://www.ams.sunysb.edu/~pfkuan/Teaching/AMS597/Data/leukemiaDataSet.txt) and explain the different model types and their applications.
+```{r}
+topk_selector <- function(X, y, technique = "correlation", method = "pearson", threshold = 0.05, top_k = 2) {
+  # Function body...
+}
+```
+The function has the following parameters:
+
+- X: Predictor variables (features) in the dataset.
+- y: Target variable (response) in the dataset.
+- technique: The technique used for predictor selection. Options include "correlation", "t-test", and "lasso".
+- method: The method used for correlation calculation (only applicable if technique is "correlation"). Default is "pearson".
+- threshold: The threshold value for selecting predictors based on the specified technique. Default is 0.05.
+- top_k: The number of top predictors to select. Default is 2.
+
+## Load the Leukemia Dataset
+```{r load-data}
+url <- "https://www.ams.sunysb.edu/~pfkuan/Teaching/AMS597/Data/leukemiaDataSet.txt"
+data <- read.table(url, header = TRUE)
+data$Group <- ifelse(data$Group=="AML",1,0)
+```
+The Leukemia dataset contains information about "Gene expression", data provide information about which genes are active or inactive in a cell, and studying these patterns can help identify genes that are involved in leukemia development and progression. Our target variable consist of ALL/AML.
+
+
+```{r}
+X <- data[, -which(names(data) == "Group")]
+y <- data$Group
+result <- SimpleEnsembleGroup17::topk_selector(X, y, technique = "correlation", method = "pearson", threshold = 0.05, top_k = 5)
+```
+
+## Conclusion
+The topk_selector function provides a flexible way to select the top predictors from a dataset using different techniques. By adjusting the parameters such as technique, method, threshold, and top_k, users can tailor the predictor selection process according to their specific needs and preferences.

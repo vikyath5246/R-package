@@ -1,118 +1,105 @@
-predictor_selection <- function(data, target_col, technique = "correlation", method = "pearson", threshold = 0.05, top_k = 2) {
-  if (!requireNamespace("glmnet", quietly = TRUE)) {
-    install.packages("glmnet")
-    stop("The 'glmnet' package is required but not installed. Please install it before using the Lasso technique.")
+'Here we are going to use the top_k selection, since this would be mostly when the numbver of rows are greater than the number of columns'
+'So here we would discuss 3 methods correlation, lasso and t-test'
+'So lets each of these.'
+
+topk_selector <- function(X, y, technique = "correlation", method = "pearson", threshold = 0.05, top_k = 2) {
+
+  'We will check if our libraries are installed or not, if they are not installed, then we would print error messages.'
+  required_libraries <- c("glmnet", "randomForest", "stats")
+  missing_libraries <- required_libraries[!required_libraries %in% installed.packages()]
+  if (length(missing_libraries) > 0) {
+    message("Installing missing libraries: ", paste(missing_libraries, collapse = ", "))
+    install.packages(missing_libraries, dependencies = TRUE)
+  }
+  lapply(required_libraries, library, character.only = TRUE)
+
+  'If we have any NA values, we are going to omit them in this dataset'
+  'We are going to adjust the sizes'
+  if (anyNA(X) || anyNA(y)) {
+    warning("The dataset contains NA values. We are removing them. You can also compute it statistically and then run the function.")
+    complete_cases <- complete.cases(X, y)
+    X <- X[complete_cases, ]
+    y <- y[complete_cases]
   }
 
-  if (!target_col %in% names(data)) {
-    stop("The target column specified does not exist in the dataset.")
-  }
-
-  if (anyNA(data)) {
-    warning("The data contains NA values. Omitting these observations. Alternatively, you can also handle NA values using imputation techniques like mean, median, or mode.")
-    data <- na.omit(data)
-  }
-
+  'If the threshold increases our expectations then we would print a warning'
   if (threshold > 0.9) {
-    warning("The threshold value for correlation is very high. Consider using a lower threshold for better predictor selection.")
+    warning("The threshold value is very high. Consider using a lower threshold for better predictor selection.")
   }
 
-  if (top_k > ncol(data) - 1) {  # Subtract 1 for the target column
-    stop("The specified value of top_k exceeds the number of predictors. Setting top_k to the maximum possible value.")
+  'We will stop if the number of columns of top k are exceeding our columns in dataset.'
+  if (top_k > ncol(X)) {
+    stop("The specified value of top_k exceeds the number of predictors. Please check ")
   }
 
-  if (is.numeric(data[[target_col]])) {
-    y <- data[[target_col]]
-  } else {
-    y <- factor(data[[target_col]])
-  }
+  results <- list()
 
   if (technique == "correlation") {
-    correlations <- cor(data[, -which(names(data) == target_col)], y, method = method)
+    'for correlation what we did we tried to find the correlation between each and evry variable'
+    ' Now the next that we did is we sorted them in an order'
+    'The next thing is we just took out the top 1:k predictors and we let the results out'
+    correlations <- cor(X, y, method = method)
     if (is.matrix(correlations)) {
-      correlations <- setNames(as.vector(correlations), colnames(data[, -which(names(data) == target_col)]))
+      correlations <- setNames(as.vector(correlations), colnames(X))
     }
-    if (any(is.na(correlations))) {
-      correlations <- na.omit(correlations)
-    }
-    correlations <- sort(abs(correlations), decreasing = TRUE)  # Sort correlation values in descending order
-    strong_predictors <- names(correlations)[1:min(top_k, length(correlations))]  # Select top_k predictors
-    strong_predictors <- strong_predictors[abs(correlations) >= threshold]  # Select predictors with correlation absolute value >= threshold
-  } else if (technique == "univariate_fs") {
-    p_values <- sapply(names(data)[-which(names(data) == target_col)], function(x) {
-      if (is.numeric(data[[x]])) {
-        test_result <- t.test(data[[x]] ~ data[[target_col]])
-        return(test_result$p.value)
-      } else {
-        return(1)
+    correlations <- sort(abs(correlations), decreasing = TRUE)
+    top_indices <- which(correlations >= threshold)
+    top_predictors <- names(correlations)[top_indices][1:min(top_k, length(top_indices))]
+    results$Predictors <- top_predictors
+    results$Values <- correlations[top_predictors]
+  } else if (technique == "t-test") {
+    'We are now going to try t-test'
+    'So the t test basically what we are trying to do it we will compute each column against the target variable'
+    'After that accordingly we will check the p-values'
+    'Generally t-test is good for binary classified dataset'
+    'Here what we are going to do we are going to sort the p-values'
+    'Then accordingly we are going to choos ethe top_k in that function'
+    p_values <- sapply(colnames(X), function(col_name) {
+      if (length(unique(y)) != 2) {
+        stop("Target variable must have exactly 2 levels for t-test. Sincet-test is only done for binary setting")
       }
+      test_result <- t.test(X[[col_name]] ~ y)
+      return(test_result$p.value)
     })
-    p_values <- sort(p_values)  # Sort the p-values in ascending order
-    strong_predictors <- names(p_values)[1:min(top_k, length(p_values))]  # Select top_k predictors
-    strong_predictors <- strong_predictors[p_values < threshold]  # Select predictors with p-value less than threshold
-  }else if (technique == "lasso") {
-    x <- as.matrix(data[, names(data) != target_col])
-    y <- data[[target_col]]
-    cv_model <- cv.glmnet(x, y, alpha = 1, nfolds = 10, family = "gaussian")
+    p_values <- sort(p_values)
+    top_indices <- which(p_values < threshold)
+    top_predictors <- names(p_values)[top_indices][1:min(top_k, length(top_indices))]
+    results$Predictors <- top_predictors
+    results$Values <- p_values[top_predictors]
+  } else if (technique == "lasso") {
+    'We are now going to try our lasso'
+    'So first what we will see is we will compute the family and the lambda values'
+    'Compute the lasso regression'
+    'So generally the speciality of lasso regression is it is used to find the topk predictors.'
+    'Now, the next step is we have to fit in the lasso regression'
+    'and then accordingly we will compute the topk values'
+
+    x <- as.matrix(X)
+    if (is.factor(y) || all(y %in% c(0, 1))) {
+      family_type <- "binomial"
+    } else {
+      family_type <- "gaussian"
+    }
+    # print(family_type)
+    cv_model <- cv.glmnet(x, y, alpha = 1, nfolds = 10, family = family_type)
     lambda_optimal <- cv_model$lambda.min
     final_model <- glmnet(x, y, alpha = 1, lambda = lambda_optimal, intercept = FALSE)
     coef_info <- coef(final_model, s = "lambda.min")
-    strong_predictors <- rownames(coef_info)[coef_info[, 1] != 0, drop = FALSE]
-
-  } else {
-    stop("Invalid technique. Please choose 'correlation', 'univariate_fs', or 'lasso'.")
+    significant_coefs <- which(abs(coef_info[, 1]) > 0)
+    sorted_coefs <- sort(abs(coef_info[significant_coefs, 1]), decreasing = TRUE)
+    top_predictors <- names(sorted_coefs[length(sorted_coefs):max(length(sorted_coefs) - top_k + 1, 1)])
+    results$Predictors <- top_predictors
+    results$Values <- coef_info[top_predictors, 1]
   }
 
-  if (length(strong_predictors) == 0) {
-    cat("No predictors selected based on the specified threshold and technique.\n")
+  else {
+    stop("Invalid technique. Please choose 'correlation', 't-test', or 'lasso'.")
+  }
+
+  if (length(results$Predictors) == 0) {des
+    cat("No predictors were selected based on the threshold. Please try changing the threshold.")
     return(NULL)
   }
-
-  top_predictors <- strong_predictors[1:min(top_k, length(strong_predictors))]
-  print(top_predictors)
-
-  build_model <- ""
-  while (build_model != "yes" && build_model != "no") {
-    build_model <- tolower(readline(prompt = "Do you want to build the train_model function? (yes/no): "))
-    if (build_model != "yes" && build_model != "no") {
-      print("Invalid input. Please enter 'yes' or 'no'.")
-    }
-  }
-
-  if (build_model == "yes") {
-    cat("Select a model type for training:\n")
-    cat("1. Linear\n")
-    cat("2. Logistic\n")
-    cat("3. Ridge\n")
-    cat("4. Lasso\n")
-    cat("5. Elastic_net\n")
-    cat("6. Random_forest\n")
-
-    model_type_input <- as.integer(readline(prompt = "Enter the model type (1-6): "))
-    model_types <- c("linear", "logistic", "ridge", "lasso", "elastic_net", "random_forest")
-
-    if (model_type_input < 1 || model_type_input > length(model_types)) {
-      stop("Invalid model type selected.")
-    }
-
-    chosen_model_type <- model_types[model_type_input]
-    cat("You have chosen to train a", chosen_model_type, "model.\n")
-
-    # Train the chosen model using the selected predictors
-    train_data <- data[, c(top_predictors, target_col)]
-    model_res <- train_model(as.formula(paste(target_col, "~ .")), train_data, model_type = chosen_model_type)
-
-    if (chosen_model_type %in% c("ridge", "lasso", "elastic_net")) {
-      model_summary <- coef(model_res)
-    } else if (chosen_model_type %in% c("linear", "logistic")) {
-      model_summary <- summary(model_res)
-    } else if (chosen_model_type == "random_forest") {
-      model_summary <- importance(model_res)
-    }
-
-    return(list(selected_predictors = top_predictors, model = model_res, summary = model_summary))
-  } else {
-    print("Okay, moving on without building the train_model function, just returning the top predictors")
-    return(selected_predictors = top_predictors)
-  }
+  'We are going to return them in a list of values and predictors'
+  return(results)
 }

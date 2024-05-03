@@ -1,0 +1,67 @@
+---
+title: "Bagging"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bagging}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(SimpleEnsembleGroup17)
+```
+
+## Introduction
+
+The `bagging` function from the `SimpleEnsembleGroup17` package provides a convenient way to train various types of models, including lasso regression, elastic net regression, and ridge models. In this vignette, we'll demonstrate how to use `bagging` with the Leukemia dataset from the [Source Url](https://www.ams.sunysb.edu/~pfkuan/Teaching/AMS597/Data/leukemiaDataSet.txt) and explain the different model types and their applications.
+
+## The bagging Function
+
+```{r bagging, eval=FALSE}
+bagging <- function(X, y, model_type = "lasso", R=42) {
+...
+}
+```
+
+The `bagging` function has the following signature:
+
+- `X`: This is the matrix or data frame containing the predictor variables (features)
+- `y`: This is the target column in the dataset
+- `model_type`: This parameter specifies the type of model to be trained. The default value is `"lasso"`, but it can be set to other values like  `"ridge"`, `"elastic_net"`. The code does not show outputs for `"logistic"`, `"random_forest"` or `"linear"`
+- `R` : The R states the solution to sample with R times
+
+
+## Load the Leukemia Dataset
+
+```{r load-data}
+url <- "https://www.ams.sunysb.edu/~pfkuan/Teaching/AMS597/Data/leukemiaDataSet.txt"
+data <- read.table(url, header = TRUE)
+data$Group <- ifelse(data$Group=="AML",1,0)
+```
+
+The Leukemia dataset contains information about "Gene expression", data provide information about which genes are active or inactive in a cell, and studying these patterns can help identify genes that are involved in leukemia development and progression. Our target variable consist of ALL/AML.
+
+
+## Bagging
+The Bagging technique is also a bootstrapping technique is like an ensembling technique which boosts accuracy and improves stability of a model. Lets see an example of Bagging on the Leukemia dataset.
+
+```{r Bagging}
+X <- data[, -which(names(data) == "Group")]
+y <- data$Group
+result<-bagging(X,y,model_type="lasso",R=42)
+print(result$naive_importance)
+```
+
+In the above example, we train a bagging model to predict the Group of the Leukemia dataset. The parameters used are:
+
+- `y = data$Group`: This is the target variable of the dataset
+- `X =  data[, -which(names(data) == "Group")]` : This is the matrix containing the predictor variables, excluding the target variable.
+- `model_type = "lasso"`: This parameter specifies that we want to train a lasso for bagging model.
+
+## Conclusion
+
+In this vignette, we demonstrated how to use the `bagging` function to train linear regression,logistic regression, ridge regression, elastic_net, lasso regression, and random forest models using the Leukemia dataset. The `bagging` function provides a convenient way for tasks such as handling categorical variables, missing data, sampling R times and model-specific parameter tuning.
+
+By leveraging the `bagging` function, users can easily experiment with different model types and select the most appropriate one with r times for their specific problem and dataset. 
