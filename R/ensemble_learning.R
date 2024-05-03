@@ -1,145 +1,129 @@
-library(caret)
-library(randomForest)
-library(glmnet)
-
 ensemble_regression <- function(data, target, models, weights = NULL) {
-  predictions <- list()  # List to store predictions of each model
-  model_objects <- list()  # List to store full model objects for external use
-  model_coefs <- list()  # List to store model coefficients or parameters
-  performance_metrics <- list()  # List to store performance metrics
 
-  # Train each specified model
+  if (any(sapply(data, function(x) !is.numeric(x)))) {
+    # Print a warning message
+    cat("Warning: Non-numeric column(s) detected. Please convert to numeric.\n")
+  }
+
+  if(sum(weights)>1){
+    stop("Weights are total greater than 1")
+  }
+  data <- na.omit(data)
+  if (nrow(data) == 0) {
+    stop("All data removed after omitting NAs.")
+  }
+
+  predictions <- list()
+  model_objects <- list()
+  model_coefs <- list()
+
+  print("Starting model training.")
+
   for (model_name in models) {
-    if (tolower(model_name) == "linear") {
-      model <- lm(as.formula(paste(target, "~ .")), data = data)
-      model_objects[[model_name]] <- model
-      predictions[[model_name]] <- predict(model, newdata = data)
-      model_coefs[[model_name]] <- coef(model)
-      performance_metrics[[model_name]] <- summary(model)$r.squared
-    } else if (tolower(model_name) == "lasso") {
-      x <- as.matrix(data[, !(colnames(data) %in% target)])
-      y <- data[[target]]
-      model <- cv.glmnet(x, y, alpha = 1)  # Alpha = 1 for Lasso
-      model_objects[[model_name]] <- model
-      best_lambda <- model$lambda.min
-      predictions[[model_name]] <- predict(model, newx = x, s = best_lambda, type = "response")
-      model_coefs[[model_name]] <- coef(model, s = best_lambda)
-      performance_metrics[[model_name]] <- min(model$cvm)
-    } else if (tolower(model_name) == "ridge") {
-      x <- as.matrix(data[, !(colnames(data) %in% target)])
-      y <- data[[target]]
-      model <- cv.glmnet(x, y, alpha = 0)  # Alpha = 0 for Ridge
-      model_objects[[model_name]] <- model
-      best_lambda <- model$lambda.min
-      predictions[[model_name]] <- predict(model, newx = x, s = best_lambda, type = "response")
-      model_coefs[[model_name]] <- coef(model, s = best_lambda)
-      performance_metrics[[model_name]] <- min(model$cvm)
-    } else if (tolower(model_name) == "elasticnet") {
-      x <- as.matrix(data[, !(colnames(data) %in% target)])
-      y <- data[[target]]
-      model <- cv.glmnet(x, y, alpha = 0.5)  # Alpha = 0.5 for Elastic Net
-      model_objects[[model_name]] <- model
-      best_lambda <- model$lambda.min
-      predictions[[model_name]] <- predict(model, newx = x, s = best_lambda, type = "response")
-      model_coefs[[model_name]] <- coef(model, s = best_lambda)
-      performance_metrics[[model_name]] <- min(model$cvm)
-    } else if (tolower(model_name) == "randomforest") {
-      model <- randomForest(as.formula(paste(target, "~ .")), data = data, ntree = 500)
-      model_objects[[model_name]] <- model
-      predictions[[model_name]] <- predict(model, newdata = data)
-      model_coefs[[model_name]] <- importance(model)
-      performance_metrics[[model_name]] <- mean(model$mse)  # Using mean squared error
+    model_name <- tolower(model_name)
+    if (model_name == "linear") {
+      print("Training linear regression.")
+      model_info <- train_model(
+        formula = as.formula(paste(target, "~ .")),
+        data = data,
+        model_type = "linear"
+      )
+      model_objects[[model_name]] <- model_info
+      predictions[[model_name]] <- predict(model_info, newdata = data)
+      model_coefs[[model_name]] <- summary(model_info)
+    } else if (model_name == "logistic") {
+      print("Training logistic regression.")
+      model_info <- train_model(
+        formula = as.formula(paste(target, "~ .")),
+        data = data,
+        model_type = "logistic"
+      )
+      model_objects[[model_name]] <- model_info
+      # print(model_objects)
+      predictions[[model_name]] <- predict(model_info, newdata = data, type = "response")
+      model_coefs[[model_name]] <- summary(model_info)
+      # print(model_coefs)
+    }else if (model_name == "lasso") {
+      print("Training Lasso regression.")
+      model_info <- train_model(
+        formula = as.formula(paste(target, "~ .")),
+        data = data,
+        model_type = "lasso"
+      )
+      model_objects[[model_name]] <- model_info
+      newx <- model.matrix(as.formula(paste(target, "~ .")), data)
+      predictions[[model_name]] <- predict(model_info, newx = newx, s = model_info$model$lambda.min)
+      model_coefs[[model_name]] <- coef(model_info)
+    } else if (model_name == "ridge") {
+      print("Training Ridge regression.")
+      model_info <- train_model(
+        formula = as.formula(paste(target, "~ .")),
+        data = data,
+        model_type = "ridge"
+      )
+      model_objects[[model_name]] <- model_info
+      predictions[[model_name]] <- predict(model_info, newx = model.matrix(as.formula(paste(target, "~ .")), data), s = model_info$model$lambda.min)
+      model_coefs[[model_name]] <- coef(model_info)
+    } else if (model_name == "elastic_net") {
+      print("Training ElasticNet regression.")
+      model_info <- train_model(
+        formula = as.formula(paste(target, "~ .")),
+        data = data,
+        model_type = "elastic_net"
+      )
+      model_objects[[model_name]] <- model_info
+      predictions[[model_name]] <- predict(model_info, newx = model.matrix(as.formula(paste(target, "~ .")), data), s = model_info$model$lambda.min)
+      model_coefs[[model_name]] <- coef(model_info)
+    } else if (model_name == "random_forest") {
+      print("Training Random Forest.")
+      model_info <- train_model(
+        formula = as.formula(paste(target, "~ .")),
+        data = data,
+        model_type = "random_forest"
+      )
+      model_objects[[model_name]] <- model_info
+      predictions[[model_name]] <- predict(model_info, newdata = data)
+      model_coefs[[model_name]] <- coef(model_info)
     }
   }
 
-  # Normalize weights
-  if (is.null(weights)) {
-    weights <- rep(1 / length(models), length(models))
-  } else {
-    weights <- weights / sum(weights)  # Ensure weights sum to 1
+
+  print("All requested models trained")
+  pred_lengths <- sapply(predictions, length)
+  if (any(pred_lengths != pred_lengths[1])) {
+    stop("Mismatch between prediction lengths among models.")
   }
 
-  # Combine predictions using weights
+  if (is.null(weights)) {
+    warning("Weights not provided. Defaulting to equal weights for all models.")
+    weights <- rep(1 / length(models), length(models))
+  } else {
+    if (length(weights) != length(models)) {
+      stop("The length of 'weights' must match the number of models.")
+    }
+    if (sum(weights) != 1) {
+      warning("The sum of weights is not equal to 1. Normalizing weights.")
+      weights <- weights / sum(weights)
+    }
+  }
+
+  # print("Weights normalized.")
+
   combined_predictions <- do.call(cbind, predictions)
+  if (is.null(combined_predictions) || ncol(combined_predictions) != length(models)) {
+    stop("Mismatch between combined predictions and the number of models.")
+  }
+
   weighted_prediction <- rowSums(combined_predictions * weights)
 
-  # Calculate an ensemble performance metric if needed (e.g., mean of metrics)
-  ensemble_performance_metric <- mean(unlist(performance_metrics))
+  actuals <- data[[target]]
 
-  # Return a list containing all relevant results and model information
+  rmse <- sqrt(mean((weighted_prediction - actuals)^2))
+
   return(list(
     "weighted_prediction" = weighted_prediction,
     "predictions" = predictions,
     "model_coefficients" = model_coefs,
-    "performance_metrics" = performance_metrics,
-    "ensemble_performance_metric" = ensemble_performance_metric,
-    "model_objects" = model_objects
+    "rmse" =rmse
   ))
 }
-
-
-# ensemble_predict <- function(test_data, ensemble_model) {
-#   predictions <- list()
-#   weights <- ensemble_model$weights  # Extract weights from the ensemble model object
-#
-#   # Iterate through each model stored in the ensemble_model object
-#   for (model_name in names(ensemble_model$model_objects)) {
-#     model <- ensemble_model$model_objects[[model_name]]
-#
-#     if (tolower(model_name) == "linear" || tolower(model_name) == "logistic") {
-#       # Predict using linear or logistic regression models
-#       predictions[[model_name]] <- predict(model, newdata = test_data)
-#     } else if (tolower(model_name) %in% c("lasso", "ridge", "elasticnet")) {
-#       # Check and prepare features for glmnet
-#       # Ensure only the features used in training are in test_data
-#       coef_names <- names(coef(model, s = "lambda.min")[ -1 ])  # -1 to exclude intercept
-#       if (all(coef_names %in% names(test_data))) {
-#         # Subsetting test_data to only include the features used in training
-#         x_new <- as.matrix(test_data[, coef_names, drop = FALSE])
-#         x_new <- scale(x_new)  # Apply scaling
-#         predictions[[model_name]] <- predict(model, newx = x_new, s = "lambda.min", type = "response")
-#       } else {
-#         stop("Variable mismatch: test data does not have the same variables as the training data for glmnet models.")
-#       }
-#     } else if (tolower(model_name) == "randomforest") {
-#       # Predict using random forest models
-#       predictions[[model_name]] <- predict(model, newdata = test_data)
-#     }
-#   }
-#
-#   # Combine predictions using weights
-#   combined_predictions <- Reduce(`+`, lapply(names(predictions), function(name) {
-#     predictions[[name]] * weights[names(weights) == name]
-#   }))
-#
-#   return(combined_predictions)
-# }
-
-
-
-# Note: Make sure that the ensemble_model object has 'weights' and 'target' appropriately set up to be used here.
-
-# data(mtcars)
-#
-# # Since `mpg` is the target variable (miles per gallon),
-# # we'll use it as our target variable
-# target <- "mpg"
-#
-# # Select the predictors (features) excluding the target variable
-# predictors <- setdiff(names(mtcars), target)
-#
-# # Combine the target variable and predictors into a dataframe
-# data <- mtcars
-#
-# # Define the models to include in the ensemble
-# models <- c("linear", "lasso", "ridge", "elasticnet", "randomforest")
-#
-# # Define weights for each model
-# weights <- c(0.2, 0.2, 0.2, 0.2, 0.2)  # Equal weights for demonstration purposes
-#
-# # Now, let's test the `ensemble_regression` function with weights
-# result <- ensemble_regression(data = data, target = target, models = models, weights = weights)
-#
-# # Print the ensemble performance metric
-# print(result$ensemble_performance_metric)
-

@@ -1,78 +1,85 @@
 train_model <- function(formula, data, model_type = "random_forest", family = NULL, lambda = NULL) {
-  install_required_packages <- function(packages) {
-    for (package in packages) {
-      if (!requireNamespace(package, quietly = TRUE)) {
-        install.packages(package)
-        warning(paste("The '", package, "' package is required but not installed. Installing it for you...", sep = ""))
-      }
-    }
+
+  if (any(sapply(data, function(x) !is.numeric(x)))) {
+    # Print a warning message
+    cat("Warning: Non-numeric column(s) detected. Please convert to numeric.\n")
   }
 
-  install_required_packages(c("glmnet", "randomForest"))
-  library(glmnet)
-  library(randomForest)
+  required_libraries <- c("glmnet", "randomForest")
+  missing_libraries <- required_libraries[!required_libraries %in% installed.packages()]
+  if (length(missing_libraries) > 0) {
+    message("Installing missing libraries: ", paste(missing_libraries, collapse = ", "))
+    install.packages(missing_libraries, dependencies = TRUE)
+  }
+
+  lapply(required_libraries, library, character.only = TRUE)
+
+  if (!is.element(all.vars(formula)[[1]], names(data))) {
+    stop("Target variable not found in the dataset.")
+  }
+
+
 
   if (anyNA(data)) {
-    warning("The data contains NA values. Omitting these observations. Alternatively, you can also handle NA values using imputation techniques like mean, median, or mode.")
+    warning("The data contains NA values. Omitting these observations.")
     data <- na.omit(data)
   }
 
   target_variable <- all.vars(formula)[[1]]
+  x <- model.matrix(formula, data)
+  y <- data[[target_variable]]
+
+
+
+  maxit <- 1000
 
   if (model_type %in% c("ridge", "lasso", "elastic_net")) {
     if (is.null(family)) {
-      unique_values <- unique(data[[target_variable]])
-      num_unique <- length(unique_values)
-      num_observations <- length(data[[target_variable]])
+      family <- ifelse(length(unique(y)) <= 5, "binomial", "gaussian")
+    }
+    if (is.null(lambda)) {
+      alpha <- ifelse(model_type == "lasso", 1, ifelse(model_type == "ridge", 0, 0.5))  # Default alpha for elastic net
+      cv_fit <- glmnet::cv.glmnet(x, y, alpha = alpha, family = family)
 
-      if (num_unique == 2) {
-        family <- "binomial"
-      } else{
-        family <- "gaussian"
+      if (any(is.infinite(cv_fit$cvm))) {
+        warning(paste("Infinite CV error encountered in", model_type, "model. Adjusting lambda selection."))
+        lambda <- cv_fit$lambda.1se
+      } else {
+        lambda <- cv_fit$lambda.min
       }
-      cat("Family used for", model_type, "regression:", family, "\n")
+    }
+
+    if (model_type == "ridge") {
+      alpha <- 0
+    } else if (model_type == "lasso") {
+      alpha <- 1
+    } else if (model_type == "elastic_net") {
+      alpha <- 0.5
+    }
+    # print(family)
+    model <- glmnet::glmnet(x, y, alpha = alpha, lambda = lambda, family = family)
+  } else {
+    if (model_type == "logistic") {
+      data[[target_variable]] <- factor(data[[target_variable]])
+      # model <- glm(formula, data = data, family = binomial(), maxit = maxit)
+    }
+      if(model_type == "random_forest") {
+      if (length(unique(y)) <= 4) {
+        data[[target_variable]] <- factor(data[[target_variable]])
+        model <- randomForest::randomForest(formula, data = data, ntree=500, mtry=sqrt(ncol(data)), classification = TRUE)
+      } else {
+        model <- randomForest::randomForest(formula, data = data, ntree = 500, mtry = sqrt(ncol(data)))
+      }
+    } else {
+      model <- switch(
+        model_type,
+        "linear" = lm(formula, data = data),
+        "logistic" = glm(formula, data = data, family = binomial(), maxit = maxit),
+        stop("Invalid model type")
+      )
     }
   }
 
-  if (model_type %in% c("ridge", "lasso", "elastic_net") && is.null(lambda)) {
-    x <- model.matrix(formula, data)
-    if (ncol(x) < 2) warning("x should be a matrix with 2 or more columns")
-    cv_fit <- glmnet::cv.glmnet(x, y = data[[target_variable]], alpha = ifelse(model_type == "ridge", 0, ifelse(model_type == "lasso", 1, 0.5)), family = family)
-    lambda <- cv_fit$lambda.min
-  }
-
-  model <- switch(
-    model_type,
-    "linear" = {
-      lm_model <- lm(formula, data = data)
-      f_statistic <- summary(lm_model)$fstatistic[1]
-      r_squared <- summary(lm_model)$r.squared
-      return(list(model = lm_model, f_statistic = f_statistic, r_squared = r_squared, summary = summary(lm_model)))
-    },
-    "logistic" = {
-      data[[target_variable]] <- factor(data[[target_variable]])
-      glm(formula, data = data, family = binomial())
-    },
-    "ridge" = {
-      x <- model.matrix(formula, data)
-      if (ncol(x) < 2) warning("x should be a matrix with 2 or more columns")
-      glmnet::glmnet(x, y = data[[target_variable]], alpha = 0, lambda = lambda, family = family)
-    },
-    "lasso" = {
-      x <- model.matrix(formula, data)
-      if (ncol(x) < 2) warning("x should be a matrix with 2 or more columns")
-      glmnet::glmnet(x, y = data[[target_variable]], alpha = 1, lambda = lambda, family = family)
-    },
-    "elastic_net" = {
-      x <- model.matrix(formula, data)
-      if (ncol(x) < 2) warning("x should be a matrix with 2 or more columns")
-      glmnet::glmnet(x, y = data[[target_variable]], alpha = 0.5, lambda = lambda, family = family)
-    },
-    "random_forest" = {
-      model <- randomForest::randomForest(formula, data = data, ntree = 500, mtry = sqrt(ncol(data) - 1), importance = TRUE, classWeight = NULL, keep.inbag = FALSE)
-    },
-    stop("Invalid model type")
-  )
-
-  return(list(model = model))
+  return(model)
 }
+
